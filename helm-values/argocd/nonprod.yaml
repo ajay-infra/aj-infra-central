@@ -1,0 +1,105 @@
+# ArgoCD Helm values — central-nonprod (manages dev + staging workload clusters)
+# Chart: argo/argo-cd
+# Bootstrap: aj-platform-gitops/bootstrap/nonprod.yaml (run after this apply)
+
+global:
+  domain: argocd.central-nonprod.platform.internal
+
+configs:
+  params:
+    server.insecure: false
+    server.disable.auth: false
+
+  cm:
+    # Helm + ksops plugin combination for SOPS-encrypted manifests
+    configManagementPlugins: ""  # Deprecated — use CMP sidecar (configured below)
+
+    # GitHub OAuth SSO — update with real client ID from Secrets Manager
+    # oidc.config: |
+    #   name: GitHub
+    #   issuer: https://token.actions.githubusercontent.com
+    #   clientID: <github-oauth-app-client-id>
+    #   clientSecret: $oidc.github.clientSecret
+    #   requestedScopes:
+    #     - openid
+    #     - profile
+    #     - email
+
+    # Resource tracking via annotation (avoids label conflicts)
+    application.resourceTrackingMethod: annotation
+
+    # Allow Helm charts from any repo (restrict in prod)
+    helm.enabled: "true"
+
+  rbac:
+    policy.default: role:readonly
+    policy.csv: |
+      p, role:infra-core, applications, *, */*, allow
+      p, role:infra-core, clusters, *, *, allow
+      p, role:infra-core, repositories, *, *, allow
+      p, role:infra-core, projects, *, *, allow
+      g, ajay-infra:infra-core, role:infra-core
+
+server:
+  replicas: 1  # nonprod — single replica
+  extraArgs:
+    - --insecure=false
+
+  podDisruptionBudget:
+    enabled: false  # single replica in nonprod — PDB would block all drains
+
+repoServer:
+  replicas: 1
+
+  # ── ksops ConfigManagementPlugin sidecar ────────────────────────────────────
+  # Decrypts SOPS-encrypted Helm values at render time using AWS KMS.
+  # The Pod Identity role (argocd-repo-server SA) gets KMS Decrypt permission.
+  extraContainers:
+    - name: ksops
+      command: [/var/run/argocd/argocd-cmp-server]
+      image: viaductoss/ksops:v4.3.2
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+      env:
+        - name: AWS_REGION
+          value: us-east-1
+      volumeMounts:
+        - mountPath: /var/run/argocd
+          name: var-files
+        - mountPath: /home/argocd/cmp-server/plugins
+          name: plugins
+        - mountPath: /tmp
+          name: cmp-tmp
+        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+          subPath: plugin.yaml
+          name: ksops-cmp-plugin
+
+  volumes:
+    - name: cmp-tmp
+      emptyDir: {}
+    - name: ksops-cmp-plugin
+      configMap:
+        name: ksops-cmp-plugin
+
+applicationSet:
+  replicas: 1
+
+controller:
+  replicas: 1
+
+redis:
+  enabled: true
+
+# ksops plugin config — tells ArgoCD when to use the ksops CMP
+# Applied via kubectl apply after Helm install (or via bootstrap workflow)
+# Contents: see aj-platform-gitops bootstrap/nonprod.yaml

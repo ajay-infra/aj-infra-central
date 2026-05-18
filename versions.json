@@ -1,0 +1,15 @@
+{
+  "_comment": "Pinned versions for aj-infra-central. Keep in sync with variables.tf defaults.",
+  "terraform": "1.7.5",
+  "providers": {
+    "aws":        "5.100.0",
+    "helm":       "2.12.1",
+    "kubernetes": "2.27.0"
+  },
+  "helm_charts": {
+    "argocd": "7.7.11"
+  },
+  "images": {
+    "ksops": "viaductoss/ksops:v4.3.2"
+  }
+}

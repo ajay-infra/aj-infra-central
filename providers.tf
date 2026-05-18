@@ -1,5 +1,5 @@
 terraform {
-  required_version = "= 1.7.5"
+  required_version = "= 1.10.5"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -15,14 +15,9 @@ terraform {
     }
   }
 
-  # Backend configured dynamically by pipelines via -backend-config
-  # backend "s3" {
-  #   bucket         = "<tf-state-bucket>"
-  #   key            = "central/<env>/terraform.tfstate"
-  #   region         = "us-east-1"
-  #   dynamodb_table = "tf-locks-central"
-  #   role_arn       = "arn:aws:iam::ACCOUNT_ID:role/GitHubActions-Terraform"
-  # }
+  # Backend configured dynamically by provision-central.yml via -backend-config flags.
+  # State key: central/<tier>/central/terraform.tfstate
+  # Locking:   S3 native (use_lockfile=true) — no DynamoDB needed (Terraform >= 1.10)
 }
 
 provider "aws" {

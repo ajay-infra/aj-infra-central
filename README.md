@@ -131,7 +131,7 @@ terraform apply -var-file=envs/central-nonprod.tfvars
 
 | Tool | Version |
 |---|---|
-| Terraform | `= 1.7.5` |
+| Terraform | `= 1.10.5` |
 | AWS provider | `= 5.100.0` |
 | Helm provider | `= 2.12.1` |
 | Kubernetes provider | `= 2.27.0` |

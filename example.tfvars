@@ -7,19 +7,9 @@ state_bucket  = "tf-state-central-123456789012"
 eks_state_key = "central/eks-blue/terraform.tfstate"
 cluster_name  = "central-nonprod-blue"
 
-central_vpc_id                  = "vpc-0central123456"
-central_vpc_cidr                = "10.200.0.0/16"
-central_private_route_table_ids = ["rtb-0aaa111", "rtb-0bbb222"]
+central_vpc_id = "vpc-0central123456"
 
-connectivity_mode = "peering"
-
-workload_vpcs = {
-  dev-blue = {
-    vpc_id                  = "vpc-0dev111"
-    vpc_cidr                = "10.100.0.0/16"
-    private_route_table_ids = ["rtb-0dev111"]
-  }
-}
+# create_tgw defaults to false — peering (owned by aj-infra-networking) covers current scale
 
 chart_version_argocd = "7.7.11"
 github_org           = "ajay-infra"

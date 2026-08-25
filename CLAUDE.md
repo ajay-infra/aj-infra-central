@@ -14,12 +14,13 @@ Two instances: central-nonprod (manages dev+staging) and central-prod (manages p
 ```
 providers.tf    → aws + helm + kubernetes providers (Helm/K8s need real cluster at apply)
 data.tf         → aws_eks_cluster (live data), terraform_remote_state (EKS module)
-variables.tf    → central_env, cluster_name, connectivity_mode, workload_vpcs, etc.
-locals.tf       → name_prefix, lgtm bucket names, peering/route cross-products
+variables.tf    → central_env, cluster_name, create_tgw, etc.
+locals.tf       → name_prefix, lgtm bucket names
 main.tf         → kubernetes_namespace, S3 buckets (loki/mimir/tempo), Pod Identity
 argocd.tf       → helm_release.argocd, argocd Pod Identity (KMS decrypt for ksops)
-connectivity.tf → aws_vpc_peering_connection OR aws_ec2_transit_gateway (mode toggle)
-outputs.tf      → argocd_role_arn, lgtm buckets, LGTM endpoints, peering/TGW IDs
+connectivity.tf → aws_ec2_transit_gateway, optional (create_tgw), off by default —
+                   peering is owned by aj-infra-networking, not here
+outputs.tf      → argocd_role_arn, lgtm buckets, LGTM endpoints, TGW IDs (if created)
 helm-values/    → ArgoCD Helm values per env (ksops sidecar config included)
 versions.json   → pinned chart versions
 ```
@@ -32,39 +33,25 @@ versions.json   → pinned chart versions
 - **ksops sidecar** in ArgoCD repo-server — configured in helm-values/argocd/{env}.yaml
 - **Pod Identity for ArgoCD** — KMS Decrypt for ksops; no static credentials
 - **LGTM endpoints are Kubernetes-internal** — become valid after ArgoCD deploys LGTM stack
-- **connectivity_mode toggle** — peering (default, ≤10 VPCs) or tgw (10+ VPCs)
 - **CI: fmt+validate+security only** — plan not possible without real EKS cluster + Helm provider
 
 ## Central Cluster Connectivity
 
-`connectivity.tf` supports two modes, set via `connectivity_mode` in `envs/central-*.tfvars`:
+Central↔workload VPC peering is owned by **`aj-infra-networking`**, not this repo —
+see its `peering.tf`. This repo only offers an optional Transit Gateway
+(`connectivity.tf`, gated by `create_tgw`, default `false`), for if the org ever
+crosses the documented TGW trigger (10+ VPC pairs, or on-prem/cross-region
+expansion). At current scale (~4-6 VPC pairs), peering via `aj-infra-networking` is
+cheaper ($0 vs ~$36/attachment/month) and already covers this — no reason to enable
+TGW yet.
 
-| Mode | When | Cost |
-|---|---|---|
-| `peering` (default) | ≤10 VPC pairs | $0 attachment fee |
-| `tgw` | 10+ VPCs, or on-prem/cross-region expansion | ~$36/attachment/month |
-
-At current scale (~4-6 VPC pairs), peering is cheaper and simpler — no reason to
-switch to TGW yet.
-
-### ⚠️ Known conflict: this duplicates two other repos
-
-`connectivity.tf`'s peering resources (`aws_vpc_peering_connection.workload` +
-routes) are NOT the only implementation of central↔workload VPC peering. Two other
-repos independently do the exact same thing, for the exact same VPC pairs:
-
-- `aj-infra-networking/peering.tf` (state key `networking/<environment>.tfstate`) —
-  has the more complete isolation model (PCI/SaaS-dedicated structural isolation).
-- `aj-infra-release/terraform/vpc-peering-central/` (run per-cluster in
-  `provision-eks.yml` stage 5, state key `<env>/vpc-peering-central-<color>/terraform.tfstate`).
-  Its own code comment says security groups are "managed by aj-infra-central (not yet
-  built)" — that assumption predates this repo's `connectivity.tf` and is now false.
-
-**Not yet resolved which repo is authoritative.** If more than one of these three
-actually applies for the same cluster, expect at minimum redundant peering
-connections, and at worst an `aws_route` "RouteAlreadyExists" failure if two configs
-write the same destination CIDR into the same route table. Confirm with whoever owns
-this decision which one is meant to be live before relying on any of the three.
+**Resolved 2026-08-24 — previously a 3-way conflict.** `aj-infra-release`,
+`aj-infra-central` (this repo), and `aj-infra-networking` all independently
+implemented the exact same central↔workload peering connections. Consolidated onto
+`aj-infra-networking` since it's the dedicated network-topology repo with the more
+complete isolation model (PCI/SaaS-dedicated structural isolation, not just a peering
+pair). This repo's peering resources were removed; `aj-infra-release`'s
+`terraform/vpc-peering-central/` was removed too.
 
 ## Apply Sequence
 

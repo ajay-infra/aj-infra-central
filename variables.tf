@@ -38,47 +38,20 @@ variable "central_vpc_id" {
   description = "Central cluster management VPC ID."
 }
 
-variable "central_vpc_cidr" {
-  type        = string
-  description = "Central management VPC CIDR (e.g. 10.200.0.0/16 for nonprod, 10.201.0.0/16 for prod)."
-}
-
-variable "central_private_route_table_ids" {
-  type        = list(string)
-  description = "Central VPC private route table IDs — peering routes to workload VPCs are added here."
-}
-
 # ── Connectivity ──────────────────────────────────────────────────────────────
+# Central↔workload VPC peering is owned by aj-infra-networking, not here — see
+# connectivity.tf and CLAUDE.md "Central Cluster Connectivity" for why. The only
+# connectivity option this repo still offers is an optional Transit Gateway.
 
-variable "connectivity_mode" {
-  type        = string
+variable "create_tgw" {
+  type        = bool
   description = <<-EOT
-    How the central cluster connects to workload clusters.
-    peering — VPC Peering (recommended for ≤10 VPC pairs; $0 attachment fee)
-    tgw     — Transit Gateway (for 10+ VPCs or on-prem / cross-region expansion)
-    See CLAUDE.md Central Cluster Connectivity section for full trade-off analysis.
+    Create a Transit Gateway for workload connectivity. Off by default — the org
+    is well under the documented trigger (10+ VPC pairs, or on-prem/cross-region
+    expansion) for needing one; peering via aj-infra-networking covers current
+    scale at $0 attachment cost. See CLAUDE.md Central Cluster Connectivity.
   EOT
-  default     = "peering"
-  validation {
-    condition     = contains(["peering", "tgw"], var.connectivity_mode)
-    error_message = "connectivity_mode must be 'peering' or 'tgw'."
-  }
-}
-
-variable "workload_vpcs" {
-  type = map(object({
-    vpc_id                  = string
-    vpc_cidr                = string
-    private_route_table_ids = list(string) # workload VPC route tables — central CIDR routes added here
-  }))
-  description = <<-EOT
-    Map of workload cluster name → VPC details for connectivity setup.
-    Example: {
-      dev-blue     = { vpc_id = "vpc-...", vpc_cidr = "10.100.0.0/16", private_route_table_ids = [...] }
-      staging-blue = { vpc_id = "vpc-...", vpc_cidr = "10.110.0.0/16", private_route_table_ids = [...] }
-    }
-  EOT
-  default     = {}
+  default     = false
 }
 
 # ── ArgoCD ────────────────────────────────────────────────────────────────────

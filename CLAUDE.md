@@ -35,6 +35,37 @@ versions.json   → pinned chart versions
 - **connectivity_mode toggle** — peering (default, ≤10 VPCs) or tgw (10+ VPCs)
 - **CI: fmt+validate+security only** — plan not possible without real EKS cluster + Helm provider
 
+## Central Cluster Connectivity
+
+`connectivity.tf` supports two modes, set via `connectivity_mode` in `envs/central-*.tfvars`:
+
+| Mode | When | Cost |
+|---|---|---|
+| `peering` (default) | ≤10 VPC pairs | $0 attachment fee |
+| `tgw` | 10+ VPCs, or on-prem/cross-region expansion | ~$36/attachment/month |
+
+At current scale (~4-6 VPC pairs), peering is cheaper and simpler — no reason to
+switch to TGW yet.
+
+### ⚠️ Known conflict: this duplicates two other repos
+
+`connectivity.tf`'s peering resources (`aws_vpc_peering_connection.workload` +
+routes) are NOT the only implementation of central↔workload VPC peering. Two other
+repos independently do the exact same thing, for the exact same VPC pairs:
+
+- `aj-infra-networking/peering.tf` (state key `networking/<environment>.tfstate`) —
+  has the more complete isolation model (PCI/SaaS-dedicated structural isolation).
+- `aj-infra-release/terraform/vpc-peering-central/` (run per-cluster in
+  `provision-eks.yml` stage 5, state key `<env>/vpc-peering-central-<color>/terraform.tfstate`).
+  Its own code comment says security groups are "managed by aj-infra-central (not yet
+  built)" — that assumption predates this repo's `connectivity.tf` and is now false.
+
+**Not yet resolved which repo is authoritative.** If more than one of these three
+actually applies for the same cluster, expect at minimum redundant peering
+connections, and at worst an `aws_route` "RouteAlreadyExists" failure if two configs
+write the same destination CIDR into the same route table. Confirm with whoever owns
+this decision which one is meant to be live before relying on any of the three.
+
 ## Apply Sequence
 
 1. aj-infra-release provision-central.yml → VPC + EKS

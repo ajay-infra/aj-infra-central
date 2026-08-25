@@ -25,9 +25,7 @@ Both clusters are provisioned by `aj-infra-release/provision-central.yml`. This 
 | `aws_iam_role.lgtm` + Pod Identity | LGTM pods can write/read S3 without static keys |
 | `helm_release.argocd` | ArgoCD hub with ksops sidecar (SOPS decrypt via KMS) |
 | `aws_iam_role.argocd` + Pod Identity | ArgoCD repo-server can call KMS Decrypt for ksops |
-| `aws_vpc_peering_connection` | Central VPC ↔ workload VPCs (peering mode) |
-| `aws_route` (both directions) | RFC1918 routing between central and workload VPCs |
-| `aws_ec2_transit_gateway` (optional) | TGW for 10+ VPCs or cross-account (tgw mode) |
+| `aws_ec2_transit_gateway` (optional, `create_tgw = true`) | TGW for 10+ VPCs or cross-account — peering (default) is owned by `aj-infra-networking`, not here |
 
 ---
 
@@ -38,7 +36,10 @@ Stage C1: aj-infra-release/provision-central.yml
           → VPC + EKS cluster (central-nonprod or central-prod)
 
 Stage C2: aj-infra-central (this repo)
-          → S3 buckets, Pod Identity, ArgoCD Helm install, VPC peering/TGW
+          → S3 buckets, Pod Identity, ArgoCD Helm install, optional TGW
+
+Stage C2b: aj-infra-networking
+          → Central↔workload VPC peering (can run in parallel with C2)
 
 Stage C3: aj-platform-gitops/bootstrap-argocd.yml
           → ArgoCD AppProjects + bootstrap ApplicationSet
@@ -82,14 +83,16 @@ These are `outputs` of this module but become valid only after the LGTM Helm cha
 
 ## Connectivity mode
 
-Set in `envs/central-*.tfvars`:
+Central↔workload VPC peering is provisioned by **`aj-infra-networking`**, not this
+repo. This repo only offers an optional Transit Gateway, off by default:
 
 ```hcl
-connectivity_mode = "peering"  # recommended for this scale (~4–6 VPC pairs)
-# connectivity_mode = "tgw"   # use for 10+ VPCs or on-prem expansion
+# envs/central-*.tfvars
+create_tgw = true   # only if the org crosses the TGW trigger (10+ VPC pairs / on-prem)
 ```
 
-See `CLAUDE.md` Central Cluster Connectivity section for cost comparison. At this scale (< 10 VPC pairs), peering saves ~$150+/month vs TGW.
+See `CLAUDE.md` Central Cluster Connectivity section for the cost comparison and the
+history of why peering moved to `aj-infra-networking`.
 
 ---
 

@@ -59,20 +59,15 @@ output "tempo_otlp_endpoint" {
 }
 
 # ── Connectivity ──────────────────────────────────────────────────────────────
-
-output "peering_connection_ids" {
-  description = "Map of workload cluster name → VPC peering connection ID (peering mode only)."
-  value = var.connectivity_mode == "peering" ? {
-    for name, conn in aws_vpc_peering_connection.workload : name => conn.id
-  } : {}
-}
+# Central↔workload VPC peering connection IDs are owned by aj-infra-networking's
+# own outputs, not here — see CLAUDE.md Central Cluster Connectivity.
 
 output "transit_gateway_id" {
-  description = "Transit Gateway ID (tgw mode only). Share to workload accounts via RAM."
-  value       = var.connectivity_mode == "tgw" ? aws_ec2_transit_gateway.main[0].id : null
+  description = "Transit Gateway ID (only set when create_tgw = true). Share to workload accounts via RAM."
+  value       = var.create_tgw ? aws_ec2_transit_gateway.main[0].id : null
 }
 
 output "transit_gateway_ram_share_arn" {
-  description = "RAM resource share ARN for TGW (tgw mode only)."
-  value       = var.connectivity_mode == "tgw" ? aws_ram_resource_share.tgw[0].arn : null
+  description = "RAM resource share ARN for TGW (only set when create_tgw = true)."
+  value       = var.create_tgw ? aws_ram_resource_share.tgw[0].arn : null
 }

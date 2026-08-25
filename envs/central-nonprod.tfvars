@@ -9,28 +9,12 @@ eks_state_key = "central/eks-blue/terraform.tfstate"
 cluster_name  = "central-nonprod-blue"
 
 # Management VPC (10.200.0.0/16 from CLAUDE.md CIDR plan)
-central_vpc_id   = "REPLACE_WITH_CENTRAL_NONPROD_VPC_ID"
-central_vpc_cidr = "10.200.0.0/16"
-central_private_route_table_ids = [
-  # REPLACE with private route table IDs from central VPC
-]
+central_vpc_id = "REPLACE_WITH_CENTRAL_NONPROD_VPC_ID"
 
-# VPC Peering — recommended for ≤10 VPC pairs
-connectivity_mode = "peering"
-
-# Workload VPCs to peer with (dev + staging)
-workload_vpcs = {
-  dev-blue = {
-    vpc_id                  = "REPLACE_WITH_DEV_VPC_ID"
-    vpc_cidr                = "10.100.0.0/16"
-    private_route_table_ids = []
-  }
-  staging-blue = {
-    vpc_id                  = "REPLACE_WITH_STAGING_VPC_ID"
-    vpc_cidr                = "10.110.0.0/16"
-    private_route_table_ids = []
-  }
-}
+# Central↔workload VPC peering is provisioned by aj-infra-networking, not here —
+# see CLAUDE.md Central Cluster Connectivity. Only set create_tgw = true if the
+# org crosses the TGW trigger (10+ VPC pairs / on-prem expansion).
+# create_tgw = true
 
 # ArgoCD
 chart_version_argocd = "7.7.11"

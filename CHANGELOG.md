@@ -4,6 +4,9 @@ All notable changes to this repo are documented here. Format loosely follows [Ke
 
 ## [Unreleased]
 
+### Changed
+- **Resolved the 3-way central↔workload VPC peering conflict** (documented in the previous PR, not fixed then pending an ownership decision): removed `connectivity.tf`'s peering resources (`aws_vpc_peering_connection.workload` + both route resources), the `connectivity_mode`/`workload_vpcs`/`central_private_route_table_ids`/`central_vpc_cidr` variables, and the `peering_connection_ids` output. Peering is now solely owned by `aj-infra-networking/peering.tf`. What remains here is the optional Transit Gateway path (`create_tgw`, default `false`, off until the org hits the documented 10+ VPC pair trigger) — nothing else in the org implements TGW, so there was no conflict there to resolve.
+
 ### Fixed
 - `README.md`'s "Provider pins" table said Terraform `= 1.7.5` — `providers.tf` actually pins `= 1.10.5`, matching the platform-wide Terraform 1.10.5 migration already reflected everywhere else. Same stale-version pattern already found and fixed in every `aj-tf-module-*` repo touched this project.
 - No `skills.md` existed at all — added one, following the same shape used for `aj-infra-platform` (another non-reusable, environment-specific orchestration repo). Without it, `infra-developer`/`infra-reviewer` had no repo-context source for this repo per the farm's two-source context model.

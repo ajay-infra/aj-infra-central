@@ -56,6 +56,29 @@ variable "create_tgw" {
 
 # ── ArgoCD ────────────────────────────────────────────────────────────────────
 
+variable "install_keycloak" {
+  type        = bool
+  description = <<-EOT
+    Install Keycloak in this central cluster.
+
+    Central, not per-workload-cluster: aj-infra-platform is applied to every
+    workload cluster, so Keycloak there would mean six Keycloaks and therefore
+    six issuers. Issuer count must not grow with clusters any more than it grows
+    with tenants. Two central environments means two Keycloaks, constant.
+
+    OFF by default: Keycloak needs a database and none exists yet. It is
+    configured for production mode, so it refuses to start without one rather
+    than silently running on H2 and losing every user on restart. See
+    aj-infra-context#24.
+  EOT
+  default     = false
+}
+
+variable "chart_version_keycloak" {
+  type    = string
+  default = "7.3.0"
+}
+
 variable "chart_version_argocd" {
   type    = string
   default = "7.7.11"

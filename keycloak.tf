@@ -14,7 +14,7 @@
 #
 # Central has exactly two environments, nonprod and prod. So: two Keycloaks,
 # constant forever. Each workload cluster's OPA trusts exactly ONE issuer — its
-# tier's Keycloak — and k8s-manifests/opa/policy-issuers.yaml stays a
+# tier's Keycloak — and aj-cluster-baseline/opa/policy-issuers.yaml stays a
 # single-entry list.
 #
 # The nonprod/prod split is deliberate rather than incidental: a dev-issued

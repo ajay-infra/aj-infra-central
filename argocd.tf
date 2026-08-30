@@ -29,7 +29,7 @@ resource "helm_release" "argocd" {
 
 # ── ksops KMS permissions ─────────────────────────────────────────────────────
 # The ArgoCD repo-server pod (ksops sidecar) needs KMS Decrypt to render
-# SOPS-encrypted Helm values files in k8s-manifests.
+# SOPS-encrypted Helm values files in aj-cluster-baseline.
 # KMS key ARNs come from aj-tf-module-scps outputs.
 
 resource "aws_iam_policy" "argocd_ksops" {

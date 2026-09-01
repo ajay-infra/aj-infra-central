@@ -14,7 +14,7 @@ resource "helm_release" "argocd" {
   namespace  = kubernetes_namespace.argocd.metadata[0].name
 
   values = [
-    file("${path.module}/helm-values/argocd/${var.central_env}.yaml")
+    file("${path.module}/helm-values/argocd/${var.central_class}-${var.central_tier}.yaml")
   ]
 
   # Wait for all ArgoCD components to be healthy before proceeding

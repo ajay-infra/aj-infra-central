@@ -1,9 +1,9 @@
-# ArgoCD Helm values — central-prod (manages prod workload clusters)
+# ArgoCD Helm values — central-product-prod (manages prod workload clusters)
 # Chart: argo/argo-cd
-# Bootstrap: aj-platform-gitops/bootstrap/prod.yaml (run after this apply)
+# Bootstrap: aj-gitops/bootstrap/prod.yaml (run after this apply)
 
 global:
-  domain: argocd.central-prod.platform.internal
+  domain: argocd.central-product-prod.platform.internal
 
 configs:
   params:

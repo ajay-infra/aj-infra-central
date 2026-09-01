@@ -36,8 +36,9 @@ locals {
 resource "aws_s3_bucket" "lgtm" {
   for_each = local.lgtm_buckets
 
-  bucket        = each.value
-  force_destroy = var.central_env != "prod"
+  bucket = each.value
+  # Tier, not the whole env string. "saas-prod" != "prod" is true.
+  force_destroy = var.central_tier != "prod"
 
   tags = merge(local.full_tags, { Component = each.key })
 }

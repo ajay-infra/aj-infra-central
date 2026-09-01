@@ -1,0 +1,95 @@
+# ArgoCD Helm values (SaaS hub) — central-saas-prod (manages prod workload clusters)
+# Chart: argo/argo-cd
+# Bootstrap: aj-gitops/bootstrap/prod.yaml (run after this apply)
+
+global:
+  domain: argocd.central-saas-prod.platform.internal
+
+configs:
+  params:
+    server.insecure: false
+    server.disable.auth: false
+
+  cm:
+    application.resourceTrackingMethod: annotation
+    helm.enabled: "true"
+    # Prod: auto-sync disabled for all Applications (manual gate enforced via AppProject)
+
+  rbac:
+    policy.default: role:readonly
+    policy.csv: |
+      p, role:infra-lead, applications, *, */*, allow
+      p, role:infra-lead, clusters, *, *, allow
+      p, role:infra-lead, repositories, *, *, allow
+      p, role:infra-lead, projects, *, *, allow
+      p, role:infra-core, applications, get, */*, allow
+      p, role:infra-core, clusters, get, *, allow
+      g, ajay-infra:infra-lead, role:infra-lead
+      g, ajay-infra:infra-core, role:infra-core
+
+server:
+  replicas: 2  # prod — HA
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+repoServer:
+  replicas: 2
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  extraContainers:
+    - name: ksops
+      command: [/var/run/argocd/argocd-cmp-server]
+      image: viaductoss/ksops:v4.3.2
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+      env:
+        - name: AWS_REGION
+          value: us-east-1
+      volumeMounts:
+        - mountPath: /var/run/argocd
+          name: var-files
+        - mountPath: /home/argocd/cmp-server/plugins
+          name: plugins
+        - mountPath: /tmp
+          name: cmp-tmp
+        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+          subPath: plugin.yaml
+          name: ksops-cmp-plugin
+
+  volumes:
+    - name: cmp-tmp
+      emptyDir: {}
+    - name: ksops-cmp-plugin
+      configMap:
+        name: ksops-cmp-plugin
+
+applicationSet:
+  replicas: 2
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+controller:
+  replicas: 1  # ArgoCD controller is single-replica by design (leader election)
+
+redis-ha:
+  enabled: true  # Redis HA in prod (3-replica Sentinel setup)
+
+redis:
+  enabled: false  # disabled when redis-ha is on

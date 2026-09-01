@@ -85,8 +85,10 @@ resource "helm_release" "keycloak" {
   # Two replicas in the prod tier. An IdP outage is a total outage — nothing
   # authenticates, including the people trying to fix it.
   set {
-    name  = "replicas"
-    value = var.central_env == "central-prod" ? "2" : "1"
+    name = "replicas"
+    # Compared against "central-prod", which central_env was never set to —
+    # it held "nonprod" or "prod". Prod ran on one replica the whole time.
+    value = var.central_tier == "prod" ? "2" : "1"
   }
 
   set {

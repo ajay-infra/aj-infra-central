@@ -1,9 +1,9 @@
-# ArgoCD Helm values — central-nonprod (manages dev + staging workload clusters)
+# ArgoCD Helm values — central-product-nonprod (manages dev + staging workload clusters)
 # Chart: argo/argo-cd
-# Bootstrap: aj-platform-gitops/bootstrap/nonprod.yaml (run after this apply)
+# Bootstrap: aj-gitops/bootstrap/nonprod.yaml (run after this apply)
 
 global:
-  domain: argocd.central-nonprod.platform.internal
+  domain: argocd.central-product-nonprod.platform.internal
 
 configs:
   params:

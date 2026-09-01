@@ -5,14 +5,37 @@ variable "aws_region" {
   default = "us-east-1"
 }
 
-variable "central_env" {
+variable "central_class" {
   type        = string
-  description = "Central cluster tier: nonprod (serves dev+staging) or prod (serves prod)."
+  description = "Which model this hub serves: product or saas."
   validation {
-    condition     = contains(["nonprod", "prod"], var.central_env)
-    error_message = "central_env must be 'nonprod' or 'prod'."
+    condition     = contains(["product", "saas"], var.central_class)
+    error_message = "central_class must be 'product' or 'saas'."
   }
 }
+
+variable "central_tier" {
+  type        = string
+  description = "Central cluster tier: nonprod or prod."
+  validation {
+    condition     = contains(["nonprod", "prod"], var.central_tier)
+    error_message = "central_tier must be 'nonprod' or 'prod'."
+  }
+}
+
+# WAS a single `central_env` string, valid only as "nonprod" or "prod". When
+# aj-infra grew a hub per class it started passing "saas-prod", which failed
+# that validation outright — loudly, which was lucky, because the two other
+# readers of the same string would have failed QUIETLY:
+#
+#   force_destroy = var.central_env != "prod"
+#       "saas-prod" != "prod" is TRUE, so the production SaaS LGTM buckets
+#       would have been created with force_destroy enabled.
+#
+#   helm-values/argocd/${var.central_env}.yaml
+#       no saas-prod.yaml exists.
+#
+# One string carrying two facts is why. They are two variables now.
 
 # ── Remote State ──────────────────────────────────────────────────────────────
 

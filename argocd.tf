@@ -8,9 +8,14 @@
 # `argo-cd`. Different release names mean every resource is named differently
 # (`argocd-server` vs `argo-cd-argocd-server`), so running both produced two
 # complete parallel installs rather than an upgrade. Found by rendering both
-# (aj-gitops#24). The release here is now `argocd`, and that workflow moves to
-# aj-infra as a bootstrap and break-glass path installing the same release from
-# these same values.
+# (aj-gitops#24). The release here is now `argocd`, and that workflow was
+# DELETED in aj-gitops#25 rather than relocated. An earlier version of this
+# comment said it would move to aj-infra as a break-glass path; that plan was
+# dropped before #25 was written, and this sentence was the only place it
+# survived. Two reasons it was dropped: aj-infra#53-#56 spent four PRs removing
+# apply machinery that cannot run under Stage 1, and once ArgoCD is
+# Terraform-managed, Terraform is itself the recovery path — the break-glass
+# argument only held while ArgoCD was going to self-manage.
 #
 # ksops sidecar is configured in helm-values/argocd/<class>-<tier>.yaml.
 # After this apply, apply aj-gitops bootstrap/<class>/<tier>.yaml to create the

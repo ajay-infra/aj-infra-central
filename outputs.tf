@@ -8,17 +8,17 @@ output "argocd_role_arn" {
 # ── LGTM S3 Buckets ───────────────────────────────────────────────────────────
 
 output "loki_bucket" {
-  description = "S3 bucket name for Loki chunks. Pass to aj-platform-gitops ApplicationSet parameters."
+  description = "S3 bucket name for Loki chunks. Pass to aj-gitops ApplicationSet parameters."
   value       = aws_s3_bucket.lgtm["loki"].bucket
 }
 
 output "mimir_bucket" {
-  description = "S3 bucket name for Mimir blocks. Pass to aj-platform-gitops ApplicationSet parameters."
+  description = "S3 bucket name for Mimir blocks. Pass to aj-gitops ApplicationSet parameters."
   value       = aws_s3_bucket.lgtm["mimir"].bucket
 }
 
 output "tempo_bucket" {
-  description = "S3 bucket name for Tempo traces. Pass to aj-platform-gitops ApplicationSet parameters."
+  description = "S3 bucket name for Tempo traces. Pass to aj-gitops ApplicationSet parameters."
   value       = aws_s3_bucket.lgtm["tempo"].bucket
 }
 
@@ -29,14 +29,14 @@ output "lgtm_role_arn" {
 
 # ── LGTM Push Endpoints ───────────────────────────────────────────────────────
 # These are the internal service DNS names workload clusters use to push telemetry.
-# They become valid after the LGTM stack is deployed by ArgoCD from aj-platform-gitops.
+# They become valid after the LGTM stack is deployed by ArgoCD from aj-gitops.
 # Update aj-infra-platform envs/*.tfvars with these values after LGTM is running.
 # Run: kubectl get svc -n monitoring to confirm actual service endpoints.
 
 output "loki_push_endpoint" {
   description = <<-EOT
     Loki log push endpoint for Alloy on workload clusters.
-    Valid after ArgoCD deploys the LGTM stack (aj-platform-gitops).
+    Valid after ArgoCD deploys the LGTM stack (aj-gitops).
     Update aj-infra-platform loki_endpoint variable with this value.
   EOT
   value       = "http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push"
@@ -45,7 +45,7 @@ output "loki_push_endpoint" {
 output "mimir_remote_write_endpoint" {
   description = <<-EOT
     Mimir metrics remote-write endpoint for Alloy on workload clusters.
-    Valid after ArgoCD deploys the LGTM stack (aj-platform-gitops).
+    Valid after ArgoCD deploys the LGTM stack (aj-gitops).
   EOT
   value       = "http://mimir-nginx.monitoring.svc.cluster.local/api/v1/push"
 }
@@ -53,7 +53,7 @@ output "mimir_remote_write_endpoint" {
 output "tempo_otlp_endpoint" {
   description = <<-EOT
     Tempo OTLP gRPC endpoint for Alloy on workload clusters.
-    Valid after ArgoCD deploys the LGTM stack (aj-platform-gitops).
+    Valid after ArgoCD deploys the LGTM stack (aj-gitops).
   EOT
   value       = "http://tempo.monitoring.svc.cluster.local:4317"
 }

@@ -29,7 +29,7 @@ versions.json   → pinned chart versions
 
 - **Private repo** — contains env-specific VPC IDs, state bucket names
 - **ArgoCD installed here** (not via aj-infra-platform) — central has its own platform layer
-- **ArgoCD NOT self-managed** — bootstrap-argocd.yml in aj-platform-gitops handles upgrades
+- **ArgoCD NOT self-managed** — installed AND upgraded by `helm_release.argocd` here, release name `argocd`. aj-gitops holds only what ArgoCD deploys.
 - **ksops sidecar** in ArgoCD repo-server — configured in helm-values/argocd/{env}.yaml
 - **Pod Identity for ArgoCD** — KMS Decrypt for ksops; no static credentials
 - **LGTM endpoints are Kubernetes-internal** — become valid after ArgoCD deploys LGTM stack
@@ -57,7 +57,7 @@ pair). This repo's peering resources were removed; `aj-infra-release`'s
 
 1. aj-infra-release provision-central.yml → VPC + EKS
 2. aj-infra-central terraform apply → this repo
-3. aj-platform-gitops bootstrap-argocd.yml → ArgoCD projects + ApplicationSets
+3. kubectl apply aj-gitops projects/<class>/ + bootstrap/<class>/<tier>.yaml
 4. ArgoCD auto-syncs LGTM stack
 5. kubectl get svc -n monitoring → get real NLB endpoints
 6. Update aj-infra-platform envs with LGTM endpoints

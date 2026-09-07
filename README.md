@@ -41,9 +41,9 @@ Stage C2: aj-infra-central (this repo)
 Stage C2b: aj-infra-networking
           → Central↔workload VPC peering (can run in parallel with C2)
 
-Stage C3: aj-platform-gitops/bootstrap-argocd.yml
-          → ArgoCD AppProjects + bootstrap ApplicationSet
-          → ArgoCD syncs LGTM stack from aj-platform-gitops
+Stage C3: kubectl apply aj-gitops bootstrap/<class>/<tier>.yaml
+          → ArgoCD AppProjects + bootstrap Application
+          → ArgoCD syncs the LGTM stack from aj-gitops
 
 Stage C4: Update aj-infra-platform envs with LGTM endpoints
           → Alloy on workload clusters starts pushing telemetry to central
@@ -69,7 +69,7 @@ VPC peering (or TGW) carries Alloy telemetry push traffic and ArgoCD agent traff
 
 ## LGTM endpoints
 
-After ArgoCD deploys the LGTM stack (from `aj-platform-gitops`), the following endpoints are available to Alloy on workload clusters. Update `aj-infra-platform` envs with these:
+After ArgoCD deploys the LGTM stack (from `aj-gitops`), the following endpoints are available to Alloy on workload clusters. Update `aj-infra-platform` envs with these:
 
 ```
 loki_push_endpoint          = http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push
@@ -122,7 +122,8 @@ terraform init \
 terraform apply -var-file=envs/central-nonprod.tfvars
 
 # 3. Bootstrap ArgoCD projects + ApplicationSets
-# aj-platform-gitops/bootstrap-argocd.yml action=install
+# kubectl apply -f aj-gitops/projects/<class>/{platform,workloads}.yaml
+# kubectl apply -f aj-gitops/bootstrap/<class>/<tier>.yaml
 
 # 4. ArgoCD syncs LGTM stack automatically
 # 5. Update aj-infra-platform envs with LGTM endpoints

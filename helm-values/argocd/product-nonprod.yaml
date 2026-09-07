@@ -1,6 +1,32 @@
-# ArgoCD Helm values — central-product-nonprod (manages dev + staging workload clusters)
-# Chart: argo/argo-cd
-# Bootstrap: aj-gitops/bootstrap/nonprod.yaml (run after this apply)
+# ArgoCD Helm values — central-product-nonprod
+# Chart: argo/argo-cd — installed by `helm_release.argocd` in argocd.tf.
+#
+# THIS IS THE ONLY DECLARATION OF THE ARGOCD INSTALL. aj-gitops holds what
+# ArgoCD *deploys* — Applications, ApplicationSets, projects, chart values — and
+# nothing that installs or upgrades ArgoCD itself. It used to carry a second
+# one (charts/argocd/values/nonprod.yaml, installed by bootstrap-argocd.yml under
+# release name `argocd`), which named every resource differently and so was a
+# parallel install rather than an upgrade. Folded in here.
+#
+# Taken from that file: GitHub OIDC, the ALB ingress, the argo-rollouts UI
+# extension, Slack notifications, resource requests/limits, gzip and
+# application.namespaces, and the reconciliation timeout.
+#
+# NOT taken: its ksops implementation. It mounted an age key from a Secret
+# `sops-age-key` while its own comment said the repo-server needs KMS decrypt.
+# The estate's SOPS keys are KMS keys, and argocd.tf grants this pod identity
+# `kms:Decrypt`, so the CMP-sidecar path below is the one consistent with the
+# rest of the estate. Its RBAC was also dropped — it granted `role:admin` where
+# this grants named roles against an explicit `policy.default: role:readonly`.
+#
+# ⚠ THREE THINGS REFERENCED HERE DO NOT EXIST ANYWHERE IN THE ESTATE:
+#     ConfigMap `ksops-cmp-plugin`          — mounted by the ksops sidecar
+#     Secret    `oidc-secret`               — GitHub SSO client id + secret
+#     Secret    `argocd-notifications-secret` — Slack token
+#   Nothing creates any of them. The chart renders and `terraform validate`
+#   passes; the repo-server pod would not start, because a missing ConfigMap
+#   volume blocks it. This was true of both files before the merge — inherited,
+#   not introduced. MOCK values are marked below.
 
 global:
   domain: argocd.central-product-nonprod.platform.internal
@@ -9,27 +35,27 @@ configs:
   params:
     server.insecure: false
     server.disable.auth: false
+    server.enable.gzip: "true"
+    # Applications are only read from the argocd namespace.
+    application.namespaces: "argocd"
 
   cm:
-    # Helm + ksops plugin combination for SOPS-encrypted manifests
-    configManagementPlugins: ""  # Deprecated — use CMP sidecar (configured below)
-
-    # GitHub OAuth SSO — update with real client ID from Secrets Manager
-    # oidc.config: |
-    #   name: GitHub
-    #   issuer: https://token.actions.githubusercontent.com
-    #   clientID: <github-oauth-app-client-id>
-    #   clientSecret: $oidc.github.clientSecret
-    #   requestedScopes:
-    #     - openid
-    #     - profile
-    #     - email
-
-    # Resource tracking via annotation (avoids label conflicts)
+    # Resource tracking via annotation, not label — avoids conflicts with
+    # Karpenter, which writes its own labels onto the same objects.
     application.resourceTrackingMethod: annotation
-
-    # Allow Helm charts from any repo (restrict in prod)
     helm.enabled: "true"
+    timeout.reconciliation: 180s
+
+    # GitHub SSO. $oidc-secret:<key> resolves from a Secret named `oidc-secret`
+    # labelled for ArgoCD. ⚠ MOCK — nothing in the estate creates it.
+    oidc.config: |
+      name: GitHub
+      issuer: https://token.actions.githubusercontent.com
+      clientID: $oidc-secret:client-id
+      clientSecret: $oidc-secret:client-secret
+      requestedScopes:
+        - read:org
+        - user:email
 
   rbac:
     policy.default: role:readonly
@@ -46,14 +72,47 @@ server:
     - --insecure=false
 
   podDisruptionBudget:
-    enabled: false  # single replica in nonprod — PDB would block all drains
+    enabled: false  # single replica — a PDB would block every node drain
+
+  # Argo Rollouts UI extension — canary status plus promote/abort in the ArgoCD
+  # UI. This is a SERVER extension, keyed `extensionList`. The file this was
+  # inherited from had it as repoServer.extensions.contents[], a shape argo-cd
+  # 7.7.11 does not read at all: it rendered nothing, silently.
+  extensions:
+    enabled: true
+    extensionList:
+      - name: rollout-extension
+        env:
+          - name: EXTENSION_URL
+            value: https://github.com/argoproj-labs/rollout-extension/releases/download/v0.3.6/extension.tar
+
+  ingress:
+    enabled: true
+    ingressClassName: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internal
+      alb.ingress.kubernetes.io/target-type: ip
+      # ⚠ MOCK — an empty ARN fails at apply. The certificate comes from ACM,
+      # and the apex it is issued for is still an open decision (RESUME.md §5).
+      alb.ingress.kubernetes.io/certificate-arn: ""
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+      alb.ingress.kubernetes.io/backend-protocol: HTTPS
+    hosts:
+      - argocd.central-product-nonprod.platform.internal
+    tls:
+      - hosts:
+          - argocd.central-product-nonprod.platform.internal
 
 repoServer:
   replicas: 1
 
+  podDisruptionBudget:
+    enabled: false
+
   # ── ksops ConfigManagementPlugin sidecar ────────────────────────────────────
-  # Decrypts SOPS-encrypted Helm values at render time using AWS KMS.
-  # The Pod Identity role (argocd-repo-server SA) gets KMS Decrypt permission.
+  # Decrypts SOPS-encrypted Helm values at render time using AWS KMS. The Pod
+  # Identity role on the argocd-repo-server SA carries kms:Decrypt — see
+  # aws_iam_policy.argocd_ksops in argocd.tf.
   extraContainers:
     - name: ksops
       command: [/var/run/argocd/argocd-cmp-server]
@@ -94,12 +153,65 @@ repoServer:
 applicationSet:
   replicas: 1
 
+  podDisruptionBudget:
+    enabled: false
+
 controller:
-  replicas: 1
+  replicas: 1  # not horizontally scalable — sharded, with leader election
+
+  podDisruptionBudget:
+    enabled: false  # single replica, as above
 
 redis:
-  enabled: true
+  enabled: true  # single-node Redis is enough for nonprod
 
-# ksops plugin config — tells ArgoCD when to use the ksops CMP
-# Applied via kubectl apply after Helm install (or via bootstrap workflow)
-# Contents: see aj-platform-gitops bootstrap/nonprod.yaml
+redis-ha:
+  enabled: false
+
+notifications:
+  enabled: true
+  secret:
+    # ⚠ MOCK — expects an existing `argocd-notifications-secret`. Nothing
+    # creates it, so notifications would start and fail to authenticate.
+    create: false
+  cm:
+    service.slack: |
+      token: $slack-token
+    template.app-sync-failed: |
+      message: |
+        *{{.app.metadata.name}}* sync failed in *{{.app.spec.destination.namespace}}*
+        Error: {{range .app.status.conditions}}{{.message}}{{end}}
+    trigger.on-sync-failed: |
+      - when: app.status.sync.status == 'Error'
+        send: [app-sync-failed]
+
+# Sized for nonprod — m7i.xlarge x 2 nodes.
+resources:
+  server:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  repoServer:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  applicationSet:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  controller:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi

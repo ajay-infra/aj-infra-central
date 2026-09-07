@@ -1,13 +1,23 @@
 # ── ArgoCD Hub ────────────────────────────────────────────────────────────────
-# ArgoCD is installed directly here (not via aj-infra-platform).
-# It is NOT managed by itself — bootstrap-argocd.yml in aj-platform-gitops
-# handles upgrades via helm upgrade --install (avoids circular self-management).
+# ArgoCD is installed directly here (not via aj-infra-platform), and this is the
+# ONLY declaration of that install. It is not self-managed, by design: aj-gitops
+# holds what ArgoCD deploys, never what deploys ArgoCD.
 #
-# ksops sidecar is configured in helm-values/argocd/{env}.yaml.
-# After this apply, run bootstrap-argocd.yml to create AppProjects + ApplicationSets.
+# aj-gitops used to carry a second installer — bootstrap-argocd.yml, installing
+# release `argocd` from its own values — while this one installed release
+# `argo-cd`. Different release names mean every resource is named differently
+# (`argocd-server` vs `argo-cd-argocd-server`), so running both produced two
+# complete parallel installs rather than an upgrade. Found by rendering both
+# (aj-gitops#24). The release here is now `argocd`, and that workflow moves to
+# aj-infra as a bootstrap and break-glass path installing the same release from
+# these same values.
+#
+# ksops sidecar is configured in helm-values/argocd/<class>-<tier>.yaml.
+# After this apply, apply aj-gitops bootstrap/<class>/<tier>.yaml to create the
+# AppProjects and ApplicationSets.
 
 resource "helm_release" "argocd" {
-  name       = "argo-cd"
+  name       = "argocd"
   repository = "https://argoproj.github.io/argo-helm"
   chart      = "argo-cd"
   version    = var.chart_version_argocd

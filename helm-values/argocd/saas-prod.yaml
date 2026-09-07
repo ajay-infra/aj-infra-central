@@ -1,6 +1,32 @@
-# ArgoCD Helm values (SaaS hub) — central-saas-prod (manages prod workload clusters)
-# Chart: argo/argo-cd
-# Bootstrap: aj-gitops/bootstrap/prod.yaml (run after this apply)
+# ArgoCD Helm values — central-saas-prod (SaaS hub)
+# Chart: argo/argo-cd — installed by `helm_release.argocd` in argocd.tf.
+#
+# THIS IS THE ONLY DECLARATION OF THE ARGOCD INSTALL. aj-gitops holds what
+# ArgoCD *deploys* — Applications, ApplicationSets, projects, chart values — and
+# nothing that installs or upgrades ArgoCD itself. It used to carry a second
+# one (charts/argocd/values/prod.yaml, installed by bootstrap-argocd.yml under
+# release name `argocd`), which named every resource differently and so was a
+# parallel install rather than an upgrade. Folded in here.
+#
+# Taken from that file: GitHub OIDC, the ALB ingress, the argo-rollouts UI
+# extension, Slack notifications, resource requests/limits, gzip and
+# application.namespaces, and the reconciliation timeout.
+#
+# NOT taken: its ksops implementation. It mounted an age key from a Secret
+# `sops-age-key` while its own comment said the repo-server needs KMS decrypt.
+# The estate's SOPS keys are KMS keys, and argocd.tf grants this pod identity
+# `kms:Decrypt`, so the CMP-sidecar path below is the one consistent with the
+# rest of the estate. Its RBAC was also dropped — it granted `role:admin` where
+# this grants named roles against an explicit `policy.default: role:readonly`.
+#
+# ⚠ THREE THINGS REFERENCED HERE DO NOT EXIST ANYWHERE IN THE ESTATE:
+#     ConfigMap `ksops-cmp-plugin`          — mounted by the ksops sidecar
+#     Secret    `oidc-secret`               — GitHub SSO client id + secret
+#     Secret    `argocd-notifications-secret` — Slack token
+#   Nothing creates any of them. The chart renders and `terraform validate`
+#   passes; the repo-server pod would not start, because a missing ConfigMap
+#   volume blocks it. This was true of both files before the merge — inherited,
+#   not introduced. MOCK values are marked below.
 
 global:
   domain: argocd.central-saas-prod.platform.internal
@@ -9,11 +35,34 @@ configs:
   params:
     server.insecure: false
     server.disable.auth: false
+    server.enable.gzip: "true"
+    # Applications are only read from the argocd namespace.
+    application.namespaces: "argocd"
 
   cm:
+    # Resource tracking via annotation, not label — avoids conflicts with
+    # Karpenter, which writes its own labels onto the same objects.
     application.resourceTrackingMethod: annotation
     helm.enabled: "true"
-    # Prod: auto-sync disabled for all Applications (manual gate enforced via AppProject)
+    timeout.reconciliation: 180s
+    # Prod is a manual gate: an Application reports Progressing until a human
+    # syncs it, so "healthy" never means "synced itself".
+    resource.customizations.health.argoproj.io/Application: |
+      hs = {}
+      hs.status = "Progressing"
+      hs.message = "Waiting for sync approval"
+      return hs
+
+    # GitHub SSO. $oidc-secret:<key> resolves from a Secret named `oidc-secret`
+    # labelled for ArgoCD. ⚠ MOCK — nothing in the estate creates it.
+    oidc.config: |
+      name: GitHub
+      issuer: https://token.actions.githubusercontent.com
+      clientID: $oidc-secret:client-id
+      clientSecret: $oidc-secret:client-secret
+      requestedScopes:
+        - read:org
+        - user:email
 
   rbac:
     policy.default: role:readonly
@@ -30,17 +79,52 @@ configs:
 server:
   replicas: 2  # prod — HA
 
+  # ArgoCD server down means no UI, no webhooks and no sync API.
   podDisruptionBudget:
     enabled: true
     minAvailable: 1
+
+  # Argo Rollouts UI extension — canary status plus promote/abort in the ArgoCD
+  # UI. This is a SERVER extension, keyed `extensionList`. The file this was
+  # inherited from had it as repoServer.extensions.contents[], a shape argo-cd
+  # 7.7.11 does not read at all: it rendered nothing, silently.
+  extensions:
+    enabled: true
+    extensionList:
+      - name: rollout-extension
+        env:
+          - name: EXTENSION_URL
+            value: https://github.com/argoproj-labs/rollout-extension/releases/download/v0.3.6/extension.tar
+
+  ingress:
+    enabled: true
+    ingressClassName: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internal
+      alb.ingress.kubernetes.io/target-type: ip
+      # ⚠ MOCK — an empty ARN fails at apply. The certificate comes from ACM,
+      # and the apex it is issued for is still an open decision (RESUME.md §5).
+      alb.ingress.kubernetes.io/certificate-arn: ""
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+      alb.ingress.kubernetes.io/backend-protocol: HTTPS
+    hosts:
+      - argocd.central-saas-prod.platform.internal
+    tls:
+      - hosts:
+          - argocd.central-saas-prod.platform.internal
 
 repoServer:
   replicas: 2
 
+  # repo-server down means no manifest rendering, so no sync at all.
   podDisruptionBudget:
     enabled: true
     minAvailable: 1
 
+  # ── ksops ConfigManagementPlugin sidecar ────────────────────────────────────
+  # Decrypts SOPS-encrypted Helm values at render time using AWS KMS. The Pod
+  # Identity role on the argocd-repo-server SA carries kms:Decrypt — see
+  # aws_iam_policy.argocd_ksops in argocd.tf.
   extraContainers:
     - name: ksops
       command: [/var/run/argocd/argocd-cmp-server]
@@ -86,10 +170,70 @@ applicationSet:
     minAvailable: 1
 
 controller:
-  replicas: 1  # ArgoCD controller is single-replica by design (leader election)
+  replicas: 1  # not horizontally scalable — sharded, with leader election
 
-redis-ha:
-  enabled: true  # Redis HA in prod (3-replica Sentinel setup)
+  podDisruptionBudget:
+    enabled: false  # single replica — a PDB would block every node drain
 
 redis:
   enabled: false  # disabled when redis-ha is on
+
+redis-ha:
+  enabled: true  # 3-replica Sentinel
+  haproxy:
+    enabled: true
+    replicas: 2
+
+notifications:
+  enabled: true
+  secret:
+    # ⚠ MOCK — expects an existing `argocd-notifications-secret`. Nothing
+    # creates it, so notifications would start and fail to authenticate.
+    create: false
+  cm:
+    service.slack: |
+      token: $slack-token
+    template.app-sync-failed: |
+      message: |
+        *[PROD]* *{{.app.metadata.name}}* sync failed
+        Error: {{range .app.status.conditions}}{{.message}}{{end}}
+    template.app-deployed: |
+      message: |
+        *[PROD]* *{{.app.metadata.name}}* deployed successfully :white_check_mark:
+    trigger.on-sync-failed: |
+      - when: app.status.sync.status == 'Error'
+        send: [app-sync-failed]
+    trigger.on-sync-succeeded: |
+      - when: app.status.sync.status == 'Synced'
+        send: [app-deployed]
+
+# Sized for prod.
+resources:
+  server:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  repoServer:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  applicationSet:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+  controller:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi

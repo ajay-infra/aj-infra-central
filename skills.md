@@ -32,13 +32,13 @@ source = "github.com/ajay-infra/aj-infra-central?ref=v1.0.0"
 | Output | Description |
 |---|---|
 | `argocd_role_arn` | ArgoCD repo-server Pod Identity role ARN — pass to `aj-tf-module-scps` |
-| `loki_bucket` / `mimir_bucket` / `tempo_bucket` | LGTM S3 bucket names — pass to `aj-platform-gitops` ApplicationSet params |
+| `loki_bucket` / `mimir_bucket` / `tempo_bucket` | LGTM S3 bucket names — pass to `aj-gitops` ApplicationSet params |
 | `lgtm_role_arn` | LGTM Pod Identity role ARN |
 | `loki_push_endpoint` / `mimir_remote_write_endpoint` / `tempo_otlp_endpoint` | In-cluster service DNS — only valid after ArgoCD deploys the LGTM stack |
 | `peering_connection_ids` / `transit_gateway_id` / `transit_gateway_ram_share_arn` | Connectivity resources — populated depending on `connectivity_mode` |
 
 ## Depends on
-`aj-infra-release/provision-central.yml` — provisions the VPC + EKS cluster this repo installs onto (via `aj-tf-module-vpc` + `aj-tf-module-eks`). This repo reads that cluster's state via `data.terraform_remote_state.eks`, not a module call. `aj-platform-gitops/bootstrap-argocd.yml` runs after this repo applies, to create ArgoCD AppProjects/ApplicationSets and trigger the actual LGTM Helm sync.
+`aj-infra-release/provision-central.yml` — provisions the VPC + EKS cluster this repo installs onto (via `aj-tf-module-vpc` + `aj-tf-module-eks`). This repo reads that cluster's state via `data.terraform_remote_state.eks`, not a module call. After this repo applies, `aj-gitops`'s `bootstrap/<class>/<tier>.yaml` is applied to create the ArgoCD AppProjects/ApplicationSets and trigger the actual LGTM Helm sync.
 
 ## AWS tags applied
 `Project`, `ManagedBy`, `Repository`, `Environment` (`central-<central_env>`), `Team`,

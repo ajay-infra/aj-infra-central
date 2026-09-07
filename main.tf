@@ -17,7 +17,7 @@ resource "kubernetes_namespace" "monitoring" {
 # ── LGTM S3 Storage ───────────────────────────────────────────────────────────
 # Loki, Mimir, and Tempo all use S3 as their backend storage.
 # Buckets are created here; Pod Identity roles grant the LGTM pods access.
-# Bucket names are output so aj-platform-gitops ApplicationSets can reference them.
+# Bucket names are output so aj-gitops ApplicationSets can reference them.
 
 locals {
   lgtm_buckets = {

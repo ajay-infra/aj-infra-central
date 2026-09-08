@@ -102,6 +102,15 @@ variable "chart_version_keycloak" {
   default = "7.3.0"
 }
 
+variable "chart_version_cilium" {
+  type        = string
+  description = <<-EOT
+    Cilium chart version. The hub has no CNI until this installs, so this is
+    the first thing on the cluster and everything else waits on it.
+  EOT
+  default     = "1.16.5"
+}
+
 variable "chart_version_argocd" {
   type    = string
   default = "7.7.11"

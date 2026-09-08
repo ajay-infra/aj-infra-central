@@ -55,6 +55,14 @@ pair). This repo's peering resources were removed; `aj-infra-release`'s
 
 ## Apply Sequence
 
+**Cilium is first, and the order is not negotiable.** `eks.tfvars` sets
+`cni = "cilium"`, so aj-tf-module-eks strips the vpc-cni and kube-proxy addons
+and installs nothing in their place. Until `helm_release.cilium` runs, the hub
+has no pod networking: nodes NotReady, and no ArgoCD component can schedule
+because none of them are host-networked. Cilium itself can, which is what makes
+the order work.
+
+
 1. aj-infra-release provision-central.yml → VPC + EKS
 2. aj-infra-central terraform apply → this repo
 3. kubectl apply aj-gitops projects/<class>/ + bootstrap/<class>/<tier>.yaml

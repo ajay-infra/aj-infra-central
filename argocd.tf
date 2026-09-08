@@ -39,6 +39,10 @@ resource "helm_release" "argocd" {
   depends_on = [
     kubernetes_namespace.argocd,
     aws_eks_pod_identity_association.lgtm, # ensure Pod Identity is ready
+    # Nothing that is not host-networked can schedule before the CNI exists,
+    # and no ArgoCD component is host-networked. Terraform's graph does not
+    # force this edge on its own — neither resource references the other.
+    helm_release.cilium,
   ]
 }
 

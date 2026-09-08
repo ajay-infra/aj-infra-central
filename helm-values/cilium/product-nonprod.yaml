@@ -1,0 +1,37 @@
+# Cilium — hub additions for central-product-nonprod
+#
+# The bulk of the configuration is NOT here. It comes from
+# aj-tf-module-eks's `cilium_helm_values` output through remote state, applied
+# as `set` blocks in cilium.tf: routing mode, tunnel protocol, pod CIDR,
+# kubeProxyReplacement, the API server endpoint, and WireGuard encryption.
+#
+# This file holds only what the hub adds on top, and exists as a file rather
+# than inline so aj-gitops's platform-dry-run can render the same chart with the
+# same values offline. Anything set here that the module also sets would be
+# fighting it — check the module's output before adding a key.
+
+operator:
+  # Two on prod-sized hubs, one on nonprod. The operator is not in the data
+  # path; a brief gap costs IPAM allocation, not traffic.
+  replicas: 1
+
+# Hubble is enabled by the module's output (relay + ui). The estate's
+# network-segmentation.md keeps default-deny OFF until Hubble has been used to
+# observe real traffic — enabling both at once is an outage whose cause is
+# invisible.
+hubble:
+  relay:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+  ui:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi

@@ -4,6 +4,15 @@ All notable changes to this repo are documented here. Format loosely follows [Ke
 
 ## [Unreleased]
 
+### Changed — `team` is required and must be a team code
+Breaking: `var.team` no longer defaults to `infra-core`; it must be
+`team-NNNN`, a row in `aj-infra/envs/org/teams.yaml`. Every consumer in the
+estate already passes one (`team = "team-0001"` in aj-infra's tfvars since
+2026-09-12), so nothing changes for them; a caller that forgot would have
+tagged resources — and labelled namespaces — with a slug nobody registered,
+which `require-product-code` now refuses at admission. Next tag is a major.
+
+
 ### Changed
 - **Resolved the 3-way central↔workload VPC peering conflict** (documented in the previous PR, not fixed then pending an ownership decision): removed `connectivity.tf`'s peering resources (`aws_vpc_peering_connection.workload` + both route resources), the `connectivity_mode`/`workload_vpcs`/`central_private_route_table_ids`/`central_vpc_cidr` variables, and the `peering_connection_ids` output. Peering is now solely owned by `aj-infra-networking/peering.tf`. What remains here is the optional Transit Gateway path (`create_tgw`, default `false`, off until the org hits the documented 10+ VPC pair trigger) — nothing else in the org implements TGW, so there was no conflict there to resolve.
 

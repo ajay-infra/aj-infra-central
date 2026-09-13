@@ -18,5 +18,5 @@ loki_retention_days  = 30
 mimir_retention_days = 90
 tempo_retention_days = 14
 
-team        = "infra-core"
+team        = "team-0001" # a team code — aj-infra/envs/org/teams.yaml
 cost_center = "infra-2026-q1"
